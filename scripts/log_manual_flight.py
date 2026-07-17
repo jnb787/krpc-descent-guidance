@@ -29,10 +29,20 @@ def main():
     print("Fly manually in KSP now. Press Ctrl+C here to stop logging.\n")
 
 
-    flight = vessel.flight(vessel.orbit.body.reference_frame)
+    telem = telemetry.Telemetry(conn, vessel)
     while True:
-        print(f"altitude={flight.mean_altitude:.1f} m  "
-              f"vspeed={flight.vertical_speed:.1f} m/s")
+        x, y, z, w = telem.orientation()
+        print(f"\n =============================\n\n"
+              f"ALTITUDE: {telem.altitude():.1f} m"
+              f"\nSPEED: vspeed={telem.vertical_speed():.1f} m/s | "
+              f"hspeed={telem.horizontal_speed():.1f} m/s"
+              f"\nMASS: total={telem.total_mass():.1f} kg | "
+              f"propellant={telem.fuel_mass():.1f} kg"
+              f"\nORIENTATION: x={x:.3f} | "
+              f"y={y:.3f} | "
+              f"z={z:.3f} | "
+              f"w={w:.3f}"
+              )
         time.sleep(0.5)
 
 
