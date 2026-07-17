@@ -28,16 +28,12 @@ def main():
     print(f"Connected. Tracking vessel: {vessel.name}")
     print("Fly manually in KSP now. Press Ctrl+C here to stop logging.\n")
 
-    # TODO: replace this with real telemetry reads once telemetry.py
-    # is implemented, e.g.:
-    #
-    # flight = vessel.flight(vessel.orbit.body.reference_frame)
-    # while True:
-    #     print(f"altitude={flight.surface_altitude:.1f} m  "
-    #           f"vspeed={flight.vertical_speed:.1f} m/s")
-    #     time.sleep(0.5)
 
-    raise NotImplementedError("Fill in the telemetry loop above.")
+    flight = vessel.flight(vessel.orbit.body.reference_frame)
+    while True:
+        print(f"altitude={flight.mean_altitude:.1f} m  "
+              f"vspeed={flight.vertical_speed:.1f} m/s")
+        time.sleep(0.5)
 
 
 if __name__ == "__main__":
