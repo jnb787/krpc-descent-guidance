@@ -49,7 +49,13 @@ class PIDController:
         Returns:
             The control signal (e.g. throttle delta).
         """
-        raise NotImplementedError
+
+        error = self.setpoint - measurement
+        p_return = error * self.kp
+
+        total_result = p_return
+
+        return total_result
 
     def reset(self) -> None:
         """Clear accumulated integral/derivative state."""

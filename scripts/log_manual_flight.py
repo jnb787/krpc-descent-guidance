@@ -32,7 +32,8 @@ def main():
 
     telem = telemetry.Telemetry(conn, vessel)
 
-    logger = FlightLogger("../data", prefix="manual_flight",
+    data_dir = os.path.join(os.path.dirname(__file__), "..", "data")
+    logger = FlightLogger(data_dir, prefix="manual_flight",
                               fields=["time", "altitude", "vertical_speed"])
 
     start_time = time.time()

@@ -46,8 +46,8 @@ class Telemetry:
         self.fuel_stream_ox = self.conn.add_stream(self.vessel.resources.amount, 'Oxidizer')
         self.rot_stream = self.conn.add_stream(self.vessel.rotation, self.ref_frame)
     def altitude(self) -> float:
-        """Return altitude in m above terrian surface."""
-        return self.flight().mean_altitude
+        """Return altitude in m above terrain surface."""
+        return self.flight().surface_altitude
 
     def vertical_speed(self) -> float:
         """Return vertical speed in m/s (negative = descending)."""
