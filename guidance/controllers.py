@@ -14,7 +14,7 @@ math. Two things live here:
    guidance concept for this project -- work through the derivation
    yourself (kinematics: v^2 = v0^2 + 2*a*d) before filling this in.
 """
-
+import time
 
 class PIDController:
     """A standard PID (Proportional-Integral-Derivative) controller.
@@ -38,6 +38,7 @@ class PIDController:
         self.setpoint = setpoint
         self._integral = 0.0
         self._prev_error = None
+        self._last_update = time.time()
 
     def update(self, measurement: float, dt: float) -> float:
         """Compute the control output for one timestep.
@@ -51,10 +52,24 @@ class PIDController:
         """
 
         error = self.setpoint - measurement
+
         p_return = error * self.kp
 
-        total_result = p_return
+        # Compute integral term
+        self._integral += error * dt
+        i_return = self.ki * self._integral
+        
+        # Compute derivative term
+        if self._prev_error is None:
+            d_return = 0.0
+        else:
+            d_return = self.kd * (error - self._prev_error) / dt
 
+        self._prev_error = error
+
+        # Compute total result
+        total_result = p_return + i_return + d_return
+        
         return total_result
 
     def reset(self) -> None:
