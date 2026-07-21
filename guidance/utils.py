@@ -12,21 +12,27 @@ import math
 
 def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float,
                         body_radius: float) -> float:
-    """Great-circle surface distance between two lat/lon points.
-
-    Useful for computing landing error: distance between where you
-    actually landed and your intended target coordinates.
+    """Compute the great-circle distance between two points on the surface of a sphere.
 
     Args:
-        lat1, lon1: first point, degrees
-        lat2, lon2: second point, degrees
-        body_radius: radius of the celestial body, meters
-            (e.g. Kerbin ~600,000 m)
+        lat1, lon1: latitude and longitude of the first point, in degrees
+        lat2, lon2: latitude and longitude of the second point, in degrees
+        body_radius: radius of the sphere, in meters
 
-    Returns:
-        Distance in meters.
+        returns: distance between the two points, in meters
     """
-    raise NotImplementedError
+    # Convert to radians
+    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+    
+    # Compute the difference in longitudes and latitudes
+    delta_lat = lat2 - lat1
+    delta_lon = lon2 - lon1
+
+    # Compute the haversine formula
+    a = math.sin(delta_lat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(delta_lon / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+    return body_radius * c
 
 
 def clamp(value: float, min_value: float, max_value: float) -> float:
