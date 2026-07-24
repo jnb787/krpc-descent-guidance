@@ -9,6 +9,7 @@ Separating this from telemetry.py keeps a clean distinction:
     vehicle.py   -> "what can my vehicle actually do about it"
 """
 
+from guidance.utils import clamp
 
 class Vehicle:
     """Represents the controllable properties of the active vessel.
@@ -32,7 +33,7 @@ class Vehicle:
 
     def available_thrust(self) -> float:
         """Return max available thrust in Newtons at current throttle=1."""
-        raise NotImplementedError
+        return self.vessel.max_thrust
 
     def max_deceleration(self) -> float:
         """Return max deceleration achievable right now (m/s^2).
@@ -42,8 +43,8 @@ class Vehicle:
         which is exactly why the suicide-burn calculation has to be
         re-evaluated every guidance loop tick, not computed once.
         """
-        raise NotImplementedError
+        return self.available_thrust() / self.current_mass()
 
     def set_throttle(self, value: float) -> None:
         """Set throttle, clamped to [0, 1]."""
-        raise NotImplementedError
+        self.vessel.control.throttle = clamp(value, 0.0, 1.0)

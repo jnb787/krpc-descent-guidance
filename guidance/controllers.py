@@ -15,6 +15,7 @@ math. Two things live here:
    yourself (kinematics: v^2 = v0^2 + 2*a*d) before filling this in.
 """
 import time
+import math
 
 class PIDController:
     """A standard PID (Proportional-Integral-Derivative) controller.
@@ -83,17 +84,6 @@ def suicide_burn_altitude(
 ) -> float:
     """Compute the altitude at which to begin the braking burn.
 
-    This answers: "given my current downward velocity and my vehicle's
-    max deceleration capability, how high above the ground do I need
-    to start burning full throttle to hit exactly zero velocity at
-    the surface?"
-
-    Derivation hint (fill in yourself, then implement):
-        Use v^2 = v0^2 + 2*a*d, solving for d (the stopping distance),
-        where the net deceleration during the burn is
-        (max_deceleration - gravity), since gravity is still pulling
-        you down while your engine pushes up.
-
     Args:
         velocity: current downward speed, m/s (positive = descending)
         max_deceleration: max thrust-based deceleration, m/s^2
@@ -104,4 +94,26 @@ def suicide_burn_altitude(
     Returns:
         Altitude (meters) above the surface at which to begin the burn.
     """
-    raise NotImplementedError
+
+    return velocity**2 / (2 * (max_deceleration - gravity))
+
+
+def target_vertical_speed(altitude: float, max_deceleration: float,
+    gravity: float, k: float = 0.9, touchdown_speed: float = 2.0,
+    ) -> float:
+    """Target vertical speed at given altitude and velocity with current deceleration.
+
+    Args:
+        altitude: current altitude, m
+        max_deceleration: max thrust-based deceleration, m/s^2
+        gravity: local gravitational acceleration, m/s^2 (e.g. 9.81
+            at Kerbin sea level -- but note it's actually ~9.81 only
+            near the surface; use the body's surface gravity constant)
+        k: how much to weight the current deceleration against the desired deceleration
+        touchdown_speed: target speed at the surface, m/s
+
+    Returns:
+        Target vertical speed, m/s
+    """
+    
+    return k * math.sqrt(altitude * 2 * (max_deceleration - gravity) + touchdown_speed)
