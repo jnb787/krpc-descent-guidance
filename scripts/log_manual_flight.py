@@ -19,6 +19,7 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from guidance import vehicle
 from guidance import telemetry
 from guidance.flight_log import FlightLogger
 
@@ -31,6 +32,7 @@ def main():
 
 
     telem = telemetry.Telemetry(conn, vessel)
+    vehic = vehicle.Vehicle(conn, vessel)
 
     data_dir = os.path.join(os.path.dirname(__file__), "..", "data")
     logger = FlightLogger(data_dir, prefix="manual_flight",
@@ -46,7 +48,7 @@ def main():
                   f"ALTITUDE: {telem.altitude():.1f} m"
                   f"\nSPEED: vspeed={telem.vertical_speed():.1f} m/s | "
                   f"hspeed={telem.horizontal_speed():.1f} m/s"
-                  f"\nMASS: total={telem.total_mass():.1f} kg | "
+                  f"\nMASS: total={vehic.current_mass():.1f} kg | "
                   f"propellant={telem.fuel_mass():.1f} kg"
                   f"\nORIENTATION: x={x:.3f} | "
                   f"y={y:.3f} | "

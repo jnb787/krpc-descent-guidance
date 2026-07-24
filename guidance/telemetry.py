@@ -70,10 +70,6 @@ class Telemetry:
         mass_of_fuel = 5*(self.fuel_stream_lf() + self.fuel_stream_ox())
         return mass_of_fuel
 
-    def total_mass(self) -> float:
-        """Return current total mass in kg."""
-        return self.vessel.mass
-
     def orientation(self) -> tuple:
         """Return (x, y, z, w) orientation quaternion."""
         return self.rot_stream()

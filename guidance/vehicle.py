@@ -28,7 +28,7 @@ class Vehicle:
 
     def current_mass(self) -> float:
         """Return current vessel mass in kg (changes as fuel burns)."""
-        raise NotImplementedError
+        return self.vessel.mass
 
     def available_thrust(self) -> float:
         """Return max available thrust in Newtons at current throttle=1."""
