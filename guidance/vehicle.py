@@ -48,3 +48,27 @@ class Vehicle:
     def set_throttle(self, value: float) -> None:
         """Set throttle, clamped to [0, 1]."""
         self.vessel.control.throttle = clamp(value, 0.0, 1.0)
+
+    def engage(self) -> None:
+        """Take control with the kRPC autopilot (turn off stock SAS so they don't fight)."""
+        self.vessel.control.sas = False
+        self.ap.engage()
+
+    def point(self, up: float, north: float, east: float) -> None:
+        """Point along a direction in the surface frame: x=up, y=north, z=east.
+        For descent: up large, north/east small (the horizontal PID sets those)."""
+        self.ap.target_direction = (up, north, east)
+
+    def point_retrograde(self) -> None:
+        """Coast phase: cheap retrograde hold via stock SAS."""
+        self.ap.disengage()               # don't let the autopilot fight SAS
+        self.vessel.control.sas = True
+        self.vessel.control.sas_mode = self.conn.space_center.SASMode.retrograde
+
+    def deploy_legs(self) -> None:
+        """Deploy legs for landing."""
+        self.vessel.control.legs = True
+
+    def apply_brakes(self) -> None:
+        """Deploy airbrakes for landing."""
+        self.vessel.control.brakes = True
