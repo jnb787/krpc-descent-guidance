@@ -9,6 +9,7 @@ Run with:
     pytest tests/
 """
 
+import pytest
 import sys
 import os
 
@@ -122,3 +123,38 @@ def test_suicide_burn_altitude_zero_velocity():
         velocity=0.0, max_deceleration=20.0, gravity=10.0
     )
     assert altitude == 0.0
+
+def test_pid_integral_accumulates_over_ticks():
+    """Integral term should keep growing while error persists, and dt should scale it."""
+    pid = PIDController(kp=0.0, ki=2.0, kd=0.0, setpoint=10.0)
+    # Constant error of 2, but dt=0.5 so each tick adds 2 * 0.5 = 1.0 to the integral.
+    # Tick 1: integral = 1.0  -> output = 2.0 * 1.0 = 2.0
+    assert pid.update(measurement=8.0, dt=0.5) == pytest.approx(2.0)
+    # Tick 2: integral = 2.0  -> output = 4.0
+    assert pid.update(measurement=8.0, dt=0.5) == pytest.approx(4.0)
+    # Tick 3: integral = 3.0  -> output = 6.0
+    assert pid.update(measurement=8.0, dt=0.5) == pytest.approx(6.0)
+
+
+def test_pid_derivative_tracks_changing_error():
+    """Derivative should reflect how fast the error is changing, tick to tick."""
+    pid = PIDController(kp=0.0, ki=0.0, kd=2.0, setpoint=10.0)
+    # Measurements 8 -> 9 -> 9.5 give errors 2 -> 1 -> 0.5 (error shrinking, but slower each time).
+    # Tick 1: no prev error, derivative = 0
+    assert pid.update(measurement=8.0, dt=1.0) == pytest.approx(0.0)
+    # Tick 2: d_error = (1 - 2)/1 = -1  -> output = 2.0 * -1 = -2.0
+    assert pid.update(measurement=9.0, dt=1.0) == pytest.approx(-2.0)
+    # Tick 3: d_error = (0.5 - 1)/1 = -0.5 -> output = 2.0 * -0.5 = -1.0
+    # (smaller magnitude: error is still shrinking, but more slowly)
+    assert pid.update(measurement=9.5, dt=1.0) == pytest.approx(-1.0)
+
+
+def test_pid_full_multi_tick():
+    """P, I, and D together across three ticks with a changing measurement."""
+    pid = PIDController(kp=1.0, ki=1.0, kd=1.0, setpoint=10.0)
+    # Tick 1: meas=8, error=2. P=2, integral=2 -> I=2, D=0 (first tick). Total=4.0
+    assert pid.update(measurement=8.0, dt=1.0) == pytest.approx(4.0)
+    # Tick 2: meas=7, error=3. P=3, integral=5 -> I=5, D=(3-2)/1=1. Total=9.0
+    assert pid.update(measurement=7.0, dt=1.0) == pytest.approx(9.0)
+    # Tick 3: meas=7, error=3 (unchanged). P=3, integral=8 -> I=8, D=(3-3)/1=0. Total=11.0
+    assert pid.update(measurement=7.0, dt=1.0) == pytest.approx(11.0)
