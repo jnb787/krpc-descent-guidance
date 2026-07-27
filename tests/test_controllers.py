@@ -158,3 +158,11 @@ def test_pid_full_multi_tick():
     assert pid.update(measurement=7.0, dt=1.0) == pytest.approx(9.0)
     # Tick 3: meas=7, error=3 (unchanged). P=3, integral=8 -> I=8, D=(3-3)/1=0. Total=11.0
     assert pid.update(measurement=7.0, dt=1.0) == pytest.approx(11.0)
+
+def test_pid_integral_windup_clamp():
+    pid = PIDController(kp=0.0, ki=1.0, kd=0.0, setpoint=10.0,
+                        integral_limit=5.0)
+    for _ in range(100):
+        pid.update(measurement=0.0, dt=1.0)   # error = 10 every tick
+    # integral would be 1000 unclamped; clamp holds it at 5.0
+    assert pid._integral == pytest.approx(5.0)

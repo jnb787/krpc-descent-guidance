@@ -16,6 +16,7 @@ math. Two things live here:
 """
 import time
 import math
+from utils import clamp
 
 class PIDController:
     """A standard PID (Proportional-Integral-Derivative) controller.
@@ -32,11 +33,12 @@ class PIDController:
         - consider output clamping (e.g. throttle must stay in [0, 1])
     """
 
-    def __init__(self, kp: float, ki: float, kd: float, setpoint: float = 0.0):
+    def __init__(self, kp: float, ki: float, kd: float, setpoint: float = 0.0, integral_limit = None):
         self.kp = kp
         self.ki = ki
         self.kd = kd
         self.setpoint = setpoint
+        self.integral_limit = integral_limit
         self._integral = 0.0
         self._prev_error = None
         self._last_update = time.time()
@@ -58,6 +60,10 @@ class PIDController:
 
         # Compute integral term
         self._integral += error * dt
+
+        if self.integral_limit is not None:
+            self._integral = clamp(self._integral, -self.integral_limit, self.integral_limit)
+
         i_return = self.ki * self._integral
         
         # Compute derivative term
