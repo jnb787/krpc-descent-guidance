@@ -100,8 +100,13 @@ def suicide_burn_altitude(
     Returns:
         Altitude (meters) above the surface at which to begin the burn.
     """
+    net_deceleration = max_deceleration - gravity
 
-    return velocity**2 / (2 * (max_deceleration - gravity))
+    # if net deceleration is negative, then full burn to attempt best possible landing
+    if net_deceleration <= 0:
+        return float("inf")
+
+    return velocity**2 / (2 * net_deceleration)
 
 
 def target_vertical_speed(altitude: float, max_deceleration: float,
