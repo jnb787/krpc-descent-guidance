@@ -32,9 +32,9 @@ def main():
     conn = telemetry.connect(name="Descent Guidance Run")
     print(f"Connected. Active vessel: {conn.space_center.active_vessel.name}")
 
-    results = mission.run_mission(conn, args.lat, args.lon)
+    FinalResults = mission.run_mission(conn, args.lat, args.lon)
     print("Landing complete. Results:")
-    for key, value in results.items():
+    for key, value in FinalResults.items():
         print(f"  {key}: {value}")
 
 

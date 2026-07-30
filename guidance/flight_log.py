@@ -37,3 +37,28 @@ class FlightLogger:
 
     def close(self) -> None:
         self._file.close()
+
+
+def write_summary(directory: str, results: dict,
+                  filename: str = "landing_summary.csv") -> str:
+    """Append one row per landing run to a cumulative summary CSV.
+
+    Unlike FlightLogger (one file per run, one row per tick), this keeps
+    every run in a single file, so plot_results.py can read landing error
+    across all 20+ runs without globbing directories.
+
+    Returns:
+        The path written to.
+    """
+    os.makedirs(directory, exist_ok=True)
+    path = os.path.join(directory, filename)
+    fields = ["timestamp"] + list(results.keys())
+    row = {"timestamp": datetime.now().strftime("%Y-%m-%d_%H%M%S"), **results}
+
+    is_new = not os.path.isfile(path)
+    with open(path, "a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        if is_new:
+            writer.writeheader()
+        writer.writerow(row)
+    return path

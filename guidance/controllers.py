@@ -16,7 +16,7 @@ math. Two things live here:
 """
 import time
 import math
-from utils import clamp
+from guidance.utils import clamp
 
 class PIDController:
     """A standard PID (Proportional-Integral-Derivative) controller.
@@ -25,12 +25,12 @@ class PIDController:
         pid = PIDController(kp=1.0, ki=0.0, kd=0.5, setpoint=0.0)
         output = pid.update(measurement, dt)
 
-    TODO:
-        - implement update(): compute error = setpoint - measurement,
-          accumulate integral term, compute derivative from the
-          change in error over dt, return kp*error + ki*integral + kd*derivative
-        - add integral windup protection (clamp the accumulated integral)
-        - consider output clamping (e.g. throttle must stay in [0, 1])
+    Args:
+        kp: proportional gain
+        ki: integral gain
+        kd: derivative gain
+        setpoint: desired output value
+        integral_limit: clamp the accumulated integral term to this value
     """
 
     def __init__(self, kp: float, ki: float, kd: float, setpoint: float = 0.0, integral_limit = None):
@@ -86,7 +86,7 @@ class PIDController:
 
 
 def suicide_burn_altitude(
-    velocity: float, max_deceleration: float, gravity: float
+    velocity: float, max_deceleration: float, gravity: float, k: float
 ) -> float:
     """Compute the altitude at which to begin the braking burn.
 
@@ -106,12 +106,11 @@ def suicide_burn_altitude(
     if net_deceleration <= 0:
         return float("inf")
 
-    return velocity**2 / (2 * net_deceleration)
+    return (1 + 1 - k) * (velocity**2 / (2 * net_deceleration))
 
 
 def target_vertical_speed(altitude: float, max_deceleration: float,
-    gravity: float, k: float = 0.9, touchdown_speed: float = 2.0,
-    ) -> float:
+    gravity: float, k: float, touchdown_speed: float) -> float:
     """Target vertical speed at given altitude and velocity with current deceleration.
 
     Args:
@@ -126,5 +125,6 @@ def target_vertical_speed(altitude: float, max_deceleration: float,
     Returns:
         Target vertical speed, m/s
     """
-    
-    return k * math.sqrt(altitude * 2 * (max_deceleration - gravity) + touchdown_speed)
+
+    net = clamp(max_deceleration - gravity, 0.1, float("inf"))
+    return k * math.sqrt(altitude * 2 * net + touchdown_speed**2)

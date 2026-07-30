@@ -54,7 +54,7 @@ class Telemetry:
         return self.flight().vertical_speed
 
     def horizontal_speed(self) -> float:
-        """Return horizontal speed in m/s (negative = right)."""
+        """Return horizontal speed in m/s."""
         return self.flight().horizontal_speed
 
     def position(self) -> tuple:
@@ -73,3 +73,20 @@ class Telemetry:
     def orientation(self) -> tuple:
         """Return (x, y, z, w) orientation quaternion."""
         return self.rot_stream()
+
+    def is_landed(self) -> bool:
+        """True once KSP considers the vessel landed or splashed down."""
+        sit = self.conn.space_center.VesselSituation
+        return self.vessel.situation in (sit.landed, sit.splashed)
+
+    def g_force(self) -> float:
+        """Return current g-force experienced by the vessel."""
+        return self.flight().g_force
+
+    def latitude(self) -> float:
+        """Return current latitude in degrees."""
+        return self.flight().latitude
+
+    def longitude(self) -> float:
+        """Return current longitude in degrees."""
+        return self.flight().longitude
