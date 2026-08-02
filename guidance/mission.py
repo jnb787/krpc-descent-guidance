@@ -51,7 +51,7 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
     vessel = conn.space_center.active_vessel
     telem = telemetry.Telemetry(conn, vessel)
     vehic = vehicle.Vehicle(conn, vessel)
-    throttle_controller = PIDController(kp=0.1, ki=0.01, kd=0.02, setpoint=0.0, integral_limit=50.0)
+    throttle_controller = PIDController(kp=0.2, ki=0.02, kd=0.02, setpoint=0.0, integral_limit=50.0)
 
     body = vessel.orbit.body
     gravity = body.surface_gravity          
@@ -113,9 +113,9 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
                     print("BRAKES")
                     vehic.apply_brakes()
 
-                if telem.altitude() <= suicide_burn_altitude(
+                if telem.effective_altitude() <= suicide_burn_altitude(
                     velocity= telem.vertical_speed(), max_deceleration=vehic.max_deceleration(),
-                    gravity=gravity, k=0.9):
+                    gravity=gravity, k=0.75):
                     vehic.set_throttle(0.0)
                     print("SUICIDE BURN")
                     phase = Phase.DESCENT
@@ -131,7 +131,7 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
                     phase = Phase.LANDED
                     continue
                 
-                desired_speed = -target_vertical_speed(telem.altitude(), vehic.max_deceleration(), gravity, k=0.9, touchdown_speed=2.0)
+                desired_speed = -target_vertical_speed(telem.effective_altitude(), vehic.max_deceleration(), gravity, k=0.75, touchdown_speed=2.0)
                 throttle_controller.setpoint = desired_speed
 
                 if telem.altitude() <= 1000.0 and not legs_deployed:
