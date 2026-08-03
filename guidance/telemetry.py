@@ -41,7 +41,7 @@ class Telemetry:
 
     def effective_altitude(self) -> float:
         """Return altitude in m factoring CoM height into the calculation."""
-        return self.flight().surface_altitude - 8
+        return self.flight().surface_altitude - 8.75
 
     def vertical_speed(self) -> float:
         """Return vertical speed in m/s (negative = descending)."""

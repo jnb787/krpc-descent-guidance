@@ -51,7 +51,7 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
     vessel = conn.space_center.active_vessel
     telem = telemetry.Telemetry(conn, vessel)
     vehic = vehicle.Vehicle(conn, vessel)
-    throttle_controller = PIDController(kp=0.2, ki=0.02, kd=0.02, setpoint=0.0, integral_limit=50.0)
+    throttle_controller = PIDController(kp=0.2, ki=0.02, kd=0.025, setpoint=0.0, integral_limit=10.0)
 
     body = vessel.orbit.body
     gravity = body.surface_gravity          
