@@ -25,17 +25,7 @@ def connect(name: str = "Descent Guidance"):
 
 
 class Telemetry:
-    """Wraps a vessel and reference frame to provide clean telemetry reads.
-
-    TODO:
-        - store conn, vessel, and the reference frame(s) you need
-          (surface frame for altitude/vertical speed, orbital frame
-          for orbital velocity)
-        - add methods like: altitude(), vertical_speed(), horizontal_speed(),
-          fuel_mass(), position(), velocity()
-        - consider using conn.add_stream(...) for values you read every
-          loop iteration, it's much more efficient than polling
-    """
+    """Wraps a vessel and reference frame to provide clean telemetry reads."""
 
     def __init__(self, conn, vessel):
         self.conn = conn
@@ -60,14 +50,6 @@ class Telemetry:
     def horizontal_speed(self) -> float:
         """Return horizontal speed in m/s."""
         return self.flight().horizontal_speed
-
-    def position(self) -> tuple:
-        """Return (x, y, z) position in meters."""
-        return self.vessel.position(self.ref_frame)
-
-    def velocity(self) -> tuple:
-        """Return (x, y, z) velocity in meters/sec."""
-        return self.vessel.velocity(self.ref_frame)
 
     def fuel_mass(self) -> float:
         """Return current propellant mass in kg."""

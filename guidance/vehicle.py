@@ -100,10 +100,6 @@ class Vehicle:
         """
         self.vessel.control.rcs = True
 
-    def disable_rcs(self) -> None:
-        """Turn off RCS."""
-        self.vessel.control.rcs = False
-
     def legs_status(self) -> bool:
         """Return True if legs are deployed."""
         return self.vessel.control.legs
@@ -111,11 +107,3 @@ class Vehicle:
     def brakes_status(self) -> bool:
         """Return True if airbrakes are deployed."""
         return self.vessel.control.brakes
-
-    def rcs_status(self) -> bool:
-        """Return True if RCS is enabled."""
-        return self.vessel.control.rcs
-
-    def monopropellant(self) -> float:
-        """Return remaining monopropellant, in units (0.0 if the craft has none)."""
-        return self.vessel.resources.amount("MonoPropellant")
