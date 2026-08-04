@@ -151,6 +151,7 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
 
             elif phase == Phase.LANDED:
                 print("LANDED")
+                vehic.disable_rcs()
                 results = {
                     "landing_error_m": haversine_distance(
                         telem.latitude(), telem.longitude(),

@@ -92,13 +92,12 @@ class Vehicle:
         self.vessel.control.brakes = True
 
     def enable_rcs(self) -> None:
-        """Turn on RCS for extra attitude authority.
-
-        Useful during descent, where the engine gimbal alone can be slow to
-        settle the vessel. Costs monopropellant, so it's worth turning back
-        off once you're down.
-        """
+        """Turn on RCS for extra attitude authority."""
         self.vessel.control.rcs = True
+
+    def disable_rcs(self) -> None:
+        """Turn off RCS."""
+        self.vessel.control.rcs = False
 
     def legs_status(self) -> bool:
         """Return True if legs are deployed."""
