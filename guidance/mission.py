@@ -18,13 +18,14 @@ Phases (build and test these one at a time, in this order):
                    fuel remaining, max G, time to land)
 
 """
+import math
 import time
 import os
 
 from guidance import telemetry, vehicle
 from guidance.flight_log import FlightLogger, write_summary
 from guidance.controllers import suicide_burn_altitude, target_vertical_speed, PIDController
-from guidance.utils import haversine_distance
+from guidance.utils import haversine_distance, surface_offset
 from enum import Enum, auto
 
 class Phase(Enum):
@@ -32,6 +33,11 @@ class Phase(Enum):
     COAST = auto()
     DESCENT = auto()
     LANDED = auto()
+
+
+# Steepest tilt off vertical the descent will command, as tan(angle) -- the
+# north/east components of the direction vector are a ratio against up=1.0.
+MAX_TILT = math.tan(math.radians(15.0))
 
 
 def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
@@ -52,6 +58,8 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
     telem = telemetry.Telemetry(conn, vessel)
     vehic = vehicle.Vehicle(conn, vessel)
     throttle_controller = PIDController(kp=0.2, ki=0.02, kd=0.025, setpoint=0.0, integral_limit=10.0)
+    north_controller = PIDController(kp=3e-4, ki=0.0, kd=5e-3, setpoint=0.0, integral_limit=0.0)
+    east_controller = PIDController(kp=3e-4, ki=0.0, kd=5e-3, setpoint=0.0, integral_limit=0.0)
 
     body = vessel.orbit.body
     gravity = body.surface_gravity          
@@ -61,12 +69,22 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
     start_time = time.time()
     max_g = 0.0
 
-    log_fields = ["time", "phase", "altitude", "vertical_speed", "horizontal_speed",
-              "target_vertical_speed", "throttle", "mass", "fuel_mass", "g_force"]
+    log_fields = ["time", "ut", "phase", "altitude", "vertical_speed", "horizontal_speed",
+              "target_vertical_speed", "throttle", "mass", "fuel_mass", "g_force",
+              # horizontal guidance: where we are vs the target, what we asked
+              # for, and what the vessel actually did about it
+              "north_offset", "east_offset", "north_input", "east_input",
+              "tilt_demand_deg", "tilt_cmd_deg", "pitch", "heading",
+              # aero authority, which is what competes with the tilt command
+              "dynamic_pressure", "drag"]
     data_dir = os.path.join(os.path.dirname(__file__), "..", "data")
     logger = FlightLogger(data_dir, prefix="landing", fields=log_fields)
     desired_speed = 0.0   # so the first ticks have something to log
     legs_deployed = False  # control.legs reads False mid-animation, so latch it here
+
+    # Horizontal guidance state, logged every tick but only driven in DESCENT.
+    north_input = east_input = 0.0
+    tilt_demand_deg = tilt_cmd_deg = 0.0
 
     phase = Phase.DEORBIT          
     last_time = time.time()
@@ -78,8 +96,19 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
             last_time = now
             max_g = max(max_g, telem.g_force())
 
+            # Computed every tick, not just in DESCENT: watching the offset
+            # evolve through COAST is what tells us whether cross-range can be
+            # corrected up there, where there is far more time than the ~20 s
+            # the burn actually lasts.
+            north_offset, east_offset = surface_offset(
+                telem.latitude(), telem.longitude(),
+                target_latitude, target_longitude, body_radius)
+
+            drag_x, drag_y, drag_z = telem.drag()
+
             logger.log({
                 "time": now - start_time,
+                "ut": telem.ut(),
                 "phase": phase.name,
                 "altitude": telem.altitude(),
                 "vertical_speed": telem.vertical_speed(),
@@ -89,6 +118,16 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
                 "mass": vehic.current_mass(),
                 "fuel_mass": telem.fuel_mass(),
                 "g_force": telem.g_force(),
+                "north_offset": north_offset,
+                "east_offset": east_offset,
+                "north_input": north_input,
+                "east_input": east_input,
+                "tilt_demand_deg": tilt_demand_deg,
+                "tilt_cmd_deg": tilt_cmd_deg,
+                "pitch": telem.pitch(),
+                "heading": telem.heading(),
+                "dynamic_pressure": telem.dynamic_pressure(),
+                "drag": math.sqrt(drag_x**2 + drag_y**2 + drag_z**2),
             })
 
 
@@ -120,6 +159,7 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
                     print("SUICIDE BURN")
                     phase = Phase.DESCENT
                     print("DESCENT")
+                    vehic.engage()
 
                 time.sleep(0.1)
 
@@ -133,6 +173,19 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
                 
                 desired_speed = -target_vertical_speed(telem.effective_altitude(), vehic.max_deceleration(), gravity, k=0.75, touchdown_speed=2.0)
                 throttle_controller.setpoint = desired_speed
+
+                north_input = north_controller.update(north_offset, dt)
+                east_input = east_controller.update(east_offset, dt)
+
+                tilt = math.hypot(north_input, east_input)
+                tilt_demand_deg = math.degrees(math.atan(tilt))
+                if tilt > MAX_TILT:
+                    north_input *= MAX_TILT / tilt
+                    east_input  *= MAX_TILT / tilt
+                tilt_cmd_deg = math.degrees(math.atan(math.hypot(north_input, east_input)))
+
+                vehic.point(up=1.0, north=north_input, east=east_input)
+
 
                 if telem.altitude() <= 1000.0 and not legs_deployed:
                     print("LEGS")

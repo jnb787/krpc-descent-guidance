@@ -35,6 +35,17 @@ class Telemetry:
         self.fuel_stream_lf = self.conn.add_stream(self.vessel.resources.amount, 'LiquidFuel')
         self.fuel_stream_ox = self.conn.add_stream(self.vessel.resources.amount, 'Oxidizer')
         self.rot_stream = self.conn.add_stream(self.vessel.rotation, self.ref_frame)
+        self.ut_stream = self.conn.add_stream(getattr, self.conn.space_center, 'ut')
+
+    def ut(self) -> float:
+        """Return universal (in-game) time in seconds.
+
+        Unlike time.time(), this advances with the game clock, so it stays
+        correct through time warp -- use it for anything that has to line
+        up with the physics (control loop dt, phase durations).
+        """
+        return self.ut_stream()
+
     def altitude(self) -> float:
         """Return altitude in m above terrain surface."""
         return self.flight().surface_altitude
@@ -76,3 +87,32 @@ class Telemetry:
     def longitude(self) -> float:
         """Return current longitude in degrees."""
         return self.flight().longitude
+
+    def pitch(self) -> float:
+        """Return pitch of the vessel's facing above the horizon, degrees.
+
+        90 is straight up, so a commanded tilt of T degrees off vertical
+        should settle at a pitch of (90 - T) if the autopilot is tracking.
+        """
+        return self.flight().pitch
+
+    def heading(self) -> float:
+        """Return compass heading of the vessel's facing, degrees (0 = north).
+
+        Paired with pitch(), this is what the vessel actually did -- compare
+        against the commanded north/east to tell a steering bug apart from
+        the autopilot being overpowered by aerodynamic forces.
+        """
+        return self.flight().heading
+
+    def dynamic_pressure(self) -> float:
+        """Return dynamic pressure in Pascals (q = 0.5 * rho * v^2).
+
+        Aerodynamic control authority scales with this, unlike thrust
+        authority -- it is ~0 above 70 km and large low and fast.
+        """
+        return self.flight().dynamic_pressure
+
+    def drag(self) -> tuple:
+        """Return (x, y, z) aerodynamic drag force in Newtons."""
+        return self.flight().drag
