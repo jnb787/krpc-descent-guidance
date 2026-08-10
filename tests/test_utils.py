@@ -10,7 +10,7 @@ import math
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from guidance.utils import clamp, haversine_distance, surface_offset
+from guidance.utils import clamp, haversine_distance, surface_offset, limit_tilt
 
 KERBIN_RADIUS = 600_000  # meters
 
@@ -78,6 +78,51 @@ def test_surface_offset_wraps_antimeridian():
     """
     _, east = surface_offset(0.0, 179.0, 0.0, -179.0, KERBIN_RADIUS)
     assert abs(east + 2 * KERBIN_RADIUS * math.pi / 180) < 1.0
+
+
+MAX_TILT_15 = math.tan(math.radians(15.0))
+
+
+def test_limit_tilt_under_limit_passes_through():
+    """A command inside the limit is returned untouched."""
+    north, east, demand, cmd = limit_tilt(0.05, 0.05, MAX_TILT_15)
+    assert abs(north - 0.05) < 1e-12
+    assert abs(east - 0.05) < 1e-12
+    assert abs(demand - cmd) < 1e-12
+
+
+def test_limit_tilt_scales_to_the_limit():
+    """An oversized command comes back at exactly the limit."""
+    north, east, _demand, cmd = limit_tilt(3.0, 4.0, MAX_TILT_15)
+    assert abs(math.hypot(north, east) - MAX_TILT_15) < 1e-12
+    assert abs(cmd - 15.0) < 1e-9
+
+
+def test_limit_tilt_preserves_bearing():
+    """Scaling is uniform, so the commanded direction is unchanged."""
+    north, east, _demand, _cmd = limit_tilt(3.0, 4.0, MAX_TILT_15)
+    assert abs(math.atan2(east, north) - math.atan2(4.0, 3.0)) < 1e-12
+
+
+def test_limit_tilt_diagonal_does_not_exceed_limit():
+    """The corner case per-axis clamping would get wrong: sqrt(2) * limit."""
+    north, east, _demand, _cmd = limit_tilt(5.0, 5.0, MAX_TILT_15)
+    assert math.hypot(north, east) <= MAX_TILT_15 + 1e-12
+
+
+def test_limit_tilt_reports_saturation_depth():
+    """demand_deg records what was asked for, cmd_deg what was allowed."""
+    _north, _east, demand, cmd = limit_tilt(math.tan(math.radians(60.0)), 0.0,
+                                            MAX_TILT_15)
+    assert abs(demand - 60.0) < 1e-9
+    assert abs(cmd - 15.0) < 1e-9
+
+
+def test_limit_tilt_zero_command_is_safe():
+    """A zero command must not divide by zero."""
+    north, east, demand, cmd = limit_tilt(0.0, 0.0, MAX_TILT_15)
+    assert (north, east) == (0.0, 0.0)
+    assert demand == 0.0 and cmd == 0.0
 
 
 def test_surface_offset_magnitude_matches_haversine():

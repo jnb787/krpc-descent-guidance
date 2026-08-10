@@ -36,6 +36,26 @@ class Telemetry:
         self.fuel_stream_ox = self.conn.add_stream(self.vessel.resources.amount, 'Oxidizer')
         self.rot_stream = self.conn.add_stream(self.vessel.rotation, self.ref_frame)
         self.ut_stream = self.conn.add_stream(getattr, self.conn.space_center, 'ut')
+        self.charge_stream = self.conn.add_stream(self.vessel.resources.amount, 'ElectricCharge')
+
+        # A second Flight stream on the *surface* frame (x=up, y=north, z=east).
+        # Attitude readings (pitch, heading, AoA, sideslip) are only meaningful
+        # here -- in the body frame above, "the horizon" is the equatorial
+        # plane, so a vertical vessel near the equator reads a pitch of ~0
+        # rather than ~90.
+        self.surface_ref_frame = self.vessel.surface_reference_frame
+        self.surface_flight = self.conn.add_stream(self.vessel.flight, self.surface_ref_frame)
+
+        # ...but NOT for velocity. surface_reference_frame has its origin at
+        # the vessel's own centre of mass and travels with it, so the vessel's
+        # velocity measured in it is identically zero. Take the axes from it
+        # and the origin from the body, which gives surface-relative velocity
+        # resolved into (up, north, east).
+        self.ne_ref_frame = self.conn.space_center.ReferenceFrame.create_hybrid(
+            position=self.vessel.orbit.body.reference_frame,
+            rotation=self.vessel.surface_reference_frame,
+            velocity=self.vessel.orbit.body.reference_frame)
+        self.ne_flight = self.conn.add_stream(self.vessel.flight, self.ne_ref_frame)
 
     def ut(self) -> float:
         """Return universal (in-game) time in seconds.
@@ -50,9 +70,17 @@ class Telemetry:
         """Return altitude in m above terrain surface."""
         return self.flight().surface_altitude
 
-    def effective_altitude(self) -> float:
-        """Return altitude in m factoring CoM height into the calculation."""
-        return self.flight().surface_altitude - 8.75
+    def mean_altitude(self) -> float:
+        """Return altitude in m above sea level.
+
+        Unlike altitude(), this is referenced to a fixed datum rather than
+        to whatever happens to be underneath the vessel, so it does not step
+        when you pass over a structure (the KSC pad deck reads several
+        metres below the terrain datum) or drift as terrain height changes
+        during a long descent. Guidance should measure its remaining
+        distance against the landing site's own sea-level elevation.
+        """
+        return self.flight().mean_altitude
 
     def vertical_speed(self) -> float:
         """Return vertical speed in m/s (negative = descending)."""
@@ -94,25 +122,61 @@ class Telemetry:
         90 is straight up, so a commanded tilt of T degrees off vertical
         should settle at a pitch of (90 - T) if the autopilot is tracking.
         """
-        return self.flight().pitch
+        return self.surface_flight().pitch
 
     def heading(self) -> float:
         """Return compass heading of the vessel's facing, degrees (0 = north).
 
         Paired with pitch(), this is what the vessel actually did -- compare
         against the commanded north/east to tell a steering bug apart from
-        the autopilot being overpowered by aerodynamic forces.
+        the autopilot being unable to hold the attitude it was given.
         """
-        return self.flight().heading
+        return self.surface_flight().heading
+
+    def velocity_ne(self) -> tuple:
+        """Return (north, east) components of surface velocity, m/s.
+
+        horizontal_speed() gives only the magnitude; these carry the
+        direction, which is what a velocity-nulling controller needs to
+        know which way to lean.
+
+        Sanity check: hypot(north, east) should equal horizontal_speed().
+        If these read zero while horizontal_speed() does not, the frame
+        is travelling with the vessel again.
+        """
+        _up, north, east = self.ne_flight().velocity
+        return (north, east)
+
+    def angle_of_attack(self) -> float:
+        """Return pitch angle between the vessel's facing and its velocity, degrees.
+
+        This is the achieved AoA. Compared against the commanded tilt it
+        says whether the vehicle is actually holding the attitude asked of
+        it, or weathercocking back to zero because the aerodynamic
+        restoring moment beats the available control torque.
+        """
+        return self.surface_flight().angle_of_attack
+
+    def sideslip_angle(self) -> float:
+        """Return yaw angle between the vessel's facing and its velocity, degrees.
+
+        The lateral counterpart to angle_of_attack() -- together they give
+        the full achieved attitude relative to the airflow.
+        """
+        return self.surface_flight().sideslip_angle
 
     def dynamic_pressure(self) -> float:
-        """Return dynamic pressure in Pascals (q = 0.5 * rho * v^2).
-
-        Aerodynamic control authority scales with this, unlike thrust
-        authority -- it is ~0 above 70 km and large low and fast.
-        """
+        """Return dynamic pressure in Pascals (q = 0.5 * rho * v^2)."""
         return self.flight().dynamic_pressure
 
     def drag(self) -> tuple:
         """Return (x, y, z) aerodynamic drag force in Newtons."""
         return self.flight().drag
+
+    def lift(self) -> tuple:
+        """Return (x, y, z) aerodynamic lift force in Newtons."""
+        return self.flight().lift
+
+    def electric_charge(self) -> float:
+        """Return remaining electric charge."""
+        return self.charge_stream()

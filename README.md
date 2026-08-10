@@ -54,7 +54,7 @@ You'll also need:
 2. Run:
 
 ```bash
-python scripts/run_landing.py --lat -0.09720 --lon -74.55767
+python scripts/run_landing.py --lat -0.09720 --lon -74.55767 --elevation 76.63
 ```
 
 ## Results

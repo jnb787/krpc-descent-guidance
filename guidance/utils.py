@@ -72,6 +72,37 @@ def surface_offset(lat: float, lon: float, target_lat: float, target_lon: float,
     return (north, east)
 
 
+def limit_tilt(north: float, east: float, max_tilt: float) -> tuple:
+    """Scale a (north, east) tilt command down to a maximum magnitude.
+
+    The components are ratios against an up-component of 1.0, so their
+    magnitude is tan(tilt angle). Scaling both by the same factor keeps the
+    commanded bearing intact -- clamping each axis on its own would bend the
+    command toward the diagonal, and would also let the corner reach
+    sqrt(2) * max_tilt.
+
+    Args:
+        north, east: requested tilt components
+        max_tilt: largest allowed magnitude, as tan(angle)
+
+    Returns:
+        (north, east, demand_deg, cmd_deg) -- the limited components, the
+        angle originally asked for, and the angle actually commanded. The
+        gap between the last two is how far into saturation the controller
+        is, which a limited command alone cannot tell you.
+    """
+    magnitude = math.hypot(north, east)
+    demand_deg = math.degrees(math.atan(magnitude))
+
+    if magnitude > max_tilt:
+        scale = max_tilt / magnitude
+        north *= scale
+        east *= scale
+        magnitude = max_tilt
+
+    return (north, east, demand_deg, math.degrees(math.atan(magnitude)))
+
+
 def clamp(value: float, min_value: float, max_value: float) -> float:
     """Clamp value to the range [min_value, max_value]."""
     return max(min_value, min(value, max_value))
