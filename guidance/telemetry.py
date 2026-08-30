@@ -69,9 +69,9 @@ class Telemetry:
         """Return horizontal speed in m/s."""
         return self.flight().horizontal_speed
 
-    def velocity_ne(self) -> tuple:
-        """Return (north, east) velocity in m/s."""
-        return self.ne_flight().velocity[1:]
+    def velocity_une(self) -> tuple:
+        """Return (up, north, east) velocity in m/s."""
+        return self.ne_flight().velocity
 
     def fuel_mass(self) -> float:
         """Return current propellant mass in kg."""

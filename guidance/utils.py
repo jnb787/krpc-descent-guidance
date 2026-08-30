@@ -75,3 +75,23 @@ def surface_offset(lat: float, lon: float, target_lat: float, target_lon: float,
 def clamp(value: float, min_value: float, max_value: float) -> float:
     """Clamp value to the range [min_value, max_value]."""
     return max(min_value, min(value, max_value))
+
+def ballistic_fall_time(height: float, vertical_speed: float, gravity: float) -> float:
+    """Compute the time to fall from a given height with a given vertical speed."""
+
+    v = abs(vertical_speed)
+    return (-v + math.sqrt(v*v + 2.0 * gravity * max(height, 0.0))) / gravity
+
+def predicted_impact_offset(north_offset: float, east_offset: float, v_north: float, v_east: float, t_fall: float) -> tuple:
+    """Predict the north/east offset at impact given current offsets, velocities, and fall time.
+
+    Args:
+        north_offset: current north offset in meters
+        east_offset: current east offset in meters
+        v_north: current north velocity in m/s
+        v_east: current east velocity in m/s
+        t_fall: time to fall in seconds"""
+
+    pred_north = north_offset + v_north * t_fall
+    pred_east = east_offset + v_east * t_fall
+    return (pred_north, pred_east)
