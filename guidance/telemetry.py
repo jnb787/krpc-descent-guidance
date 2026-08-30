@@ -36,6 +36,13 @@ class Telemetry:
         self.fuel_stream_ox = self.conn.add_stream(self.vessel.resources.amount, 'Oxidizer')
         self.rot_stream = self.conn.add_stream(self.vessel.rotation, self.ref_frame)
         self.ut_stream = self.conn.add_stream(getattr, self.conn.space_center, 'ut')
+        self.ne_ref_frame = self.conn.space_center.ReferenceFrame.create_hybrid(
+            position=self.vessel.orbit.body.reference_frame,
+            rotation=self.vessel.surface_reference_frame,
+            velocity=self.vessel.orbit.body.reference_frame)
+        self.ne_flight = self.conn.add_stream(self.vessel.flight, self.ne_ref_frame)
+
+        
 
     def ut(self) -> float:
         """Return universal (in-game) time in seconds.
@@ -61,6 +68,10 @@ class Telemetry:
     def horizontal_speed(self) -> float:
         """Return horizontal speed in m/s."""
         return self.flight().horizontal_speed
+
+    def velocity_ne(self) -> tuple:
+        """Return (north, east) velocity in m/s."""
+        return self.ne_flight().velocity[1:]
 
     def fuel_mass(self) -> float:
         """Return current propellant mass in kg."""
