@@ -66,6 +66,10 @@ class Vehicle:
         For descent: up large, north/east small (the horizontal PID sets those)."""
         self.ap.target_direction = (up, north, east)
 
+    def pointing_error(self) -> float:
+        """Return the current error in the target direction, in degrees."""
+        return self.ap.error
+
     def point_retrograde(self) -> None:
         """Coast phase: cheap retrograde hold via stock SAS."""
         self.ap.disengage()               # don't let the autopilot fight SAS
