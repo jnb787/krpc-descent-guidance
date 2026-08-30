@@ -25,7 +25,7 @@ import os
 from guidance import telemetry, vehicle
 from guidance.flight_log import FlightLogger, write_summary
 from guidance.controllers import suicide_burn_altitude, target_vertical_speed, PIDController
-from guidance.utils import haversine_distance, surface_offset
+from guidance.utils import haversine_distance, surface_offset, ballistic_fall_time, predicted_impact_offset
 from enum import Enum, auto
 
 class Phase(Enum):
@@ -109,6 +109,12 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
                 telem.latitude(), telem.longitude(),
                 target_latitude, target_longitude, body_radius)
 
+            velocity_up, velocity_north, velocity_east = telem.velocity_une()
+
+            t_fall = ballistic_fall_time(telem.altitude(), velocity_up, gravity)
+            predicted_north, predicted_east = predicted_impact_offset(
+                north_offset, east_offset, velocity_north, velocity_east, t_fall)
+            
             drag_x, drag_y, drag_z = telem.drag()
 
             logger.log({
@@ -148,7 +154,7 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
 
                 vehic.set_throttle(0.0)
                 vehic.engage()
-                
+
                 phase = Phase.CORRECT
                 print("CORRECT")
 
