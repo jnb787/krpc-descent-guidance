@@ -104,17 +104,23 @@ class Telemetry:
 
         90 is straight up, so a commanded tilt of T degrees off vertical
         should settle at a pitch of (90 - T) if the autopilot is tracking.
+
+        Read from the hybrid frame, not self.flight: attitude is measured
+        against the reference frame's axes, and in the body frame "the
+        horizon" is the equatorial plane -- a vertical vessel near the
+        equator reads ~0 there instead of ~90.
         """
-        return self.flight().pitch
+        return self.ne_flight().pitch
 
     def heading(self) -> float:
         """Return compass heading of the vessel's facing, degrees (0 = north).
 
         Paired with pitch(), this is what the vessel actually did -- compare
         against the commanded north/east to tell a steering bug apart from
-        the autopilot being overpowered by aerodynamic forces.
+        the autopilot being overpowered by aerodynamic forces. Same frame
+        caveat as pitch().
         """
-        return self.flight().heading
+        return self.ne_flight().heading
 
     def dynamic_pressure(self) -> float:
         """Return dynamic pressure in Pascals (q = 0.5 * rho * v^2).
