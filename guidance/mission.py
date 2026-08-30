@@ -30,6 +30,7 @@ from enum import Enum, auto
 
 class Phase(Enum):
     DEORBIT = auto()
+    CORRECT = auto()
     COAST = auto()
     DESCENT = auto()
     LANDED = auto()
@@ -39,6 +40,10 @@ class Phase(Enum):
 # north/east components of the direction vector are a ratio against up=1.0.
 MAX_TILT = math.tan(math.radians(15.0))
 
+CORRECT_THROTTLE = 0.1
+CORRECT_DV_TOLERANCE = 1.0  # m/s
+CORRECT_FLOOR = 40000.0    # m
+POINT_TOLERANCE = 10.0       # degrees
 
 def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
     """Run the full autonomous landing sequence.
@@ -142,7 +147,14 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
                     time.sleep(0.2)
 
                 vehic.set_throttle(0.0)
+                vehic.engage()
+                
+                phase = Phase.CORRECT
+                print("CORRECT")
 
+            elif phase == Phase.CORRECT:
+                
+            
                 phase = Phase.COAST
                 print("COAST")
                 
