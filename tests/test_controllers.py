@@ -110,9 +110,11 @@ def test_suicide_burn_altitude_simple_case():
     If falling at 100 m/s, max deceleration is 20 m/s^2, and gravity
     is 10 m/s^2, net deceleration during the burn is 10 m/s^2.
     Using v^2 = v0^2 + 2*a*d  ->  d = v0^2 / (2*a) = 100^2 / 20 = 500 m.
+
+    k=1.0 zeroes the safety margin, so this checks the bare kinematics.
     """
     altitude = suicide_burn_altitude(
-        velocity=100.0, max_deceleration=20.0, gravity=10.0
+        velocity=100.0, max_deceleration=20.0, gravity=10.0, k=1.0
     )
     assert abs(altitude - 500.0) < 0.01
 
@@ -120,7 +122,7 @@ def test_suicide_burn_altitude_simple_case():
 def test_suicide_burn_altitude_zero_velocity():
     """If you're not moving, you don't need any altitude margin."""
     altitude = suicide_burn_altitude(
-        velocity=0.0, max_deceleration=20.0, gravity=10.0
+        velocity=0.0, max_deceleration=20.0, gravity=10.0, k=1.0
     )
     assert altitude == 0.0
 
@@ -166,3 +168,27 @@ def test_pid_integral_windup_clamp():
         pid.update(measurement=0.0, dt=1.0)   # error = 10 every tick
     # integral would be 1000 unclamped; clamp holds it at 5.0
     assert pid._integral == pytest.approx(5.0)
+
+
+def test_suicide_burn_altitude_applies_margin():
+    """k below 1.0 scales the burn altitude by (2 - k).
+
+    The mission flies k=0.75, which is a 25% altitude cushion over the bare
+    kinematic distance -- cover for the fact that the formula models neither
+    drag nor the mass lost during the burn.
+    """
+    bare = suicide_burn_altitude(
+        velocity=100.0, max_deceleration=20.0, gravity=10.0, k=1.0
+    )
+    padded = suicide_burn_altitude(
+        velocity=100.0, max_deceleration=20.0, gravity=10.0, k=0.75
+    )
+    assert abs(padded - 1.25 * bare) < 0.01
+
+
+def test_suicide_burn_altitude_thrust_below_gravity():
+    """If thrust cannot beat gravity, no altitude is enough."""
+    altitude = suicide_burn_altitude(
+        velocity=100.0, max_deceleration=5.0, gravity=10.0, k=1.0
+    )
+    assert altitude == float("inf")

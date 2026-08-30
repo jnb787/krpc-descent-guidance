@@ -10,9 +10,11 @@ import math
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from guidance.utils import clamp, haversine_distance, surface_offset
+from guidance.utils import (clamp, haversine_distance, surface_offset,
+                           ballistic_fall_time, predicted_impact_offset)
 
 KERBIN_RADIUS = 600_000  # meters
+KERBIN_GRAVITY = 9.81    # m/s^2 at the surface
 
 
 def test_clamp_within_range():
@@ -87,3 +89,74 @@ def test_surface_offset_magnitude_matches_haversine():
     approx = math.hypot(north, east)
     exact = haversine_distance(lat, lon, -0.0972, -74.5577, KERBIN_RADIUS)
     assert abs(approx - exact) < 1.0
+
+
+def test_ballistic_fall_time_free_fall():
+    """Dropped from rest, fall time is the closed form sqrt(2h/g)."""
+    t = ballistic_fall_time(1000.0, 0.0, KERBIN_GRAVITY)
+    assert abs(t - math.sqrt(2 * 1000.0 / KERBIN_GRAVITY)) < 1e-9
+
+
+def test_ballistic_fall_time_satisfies_kinematics():
+    """Substituting t back into h = v*t + g*t^2/2 must recover the height.
+
+    Stronger than a spot value: it checks the quadratic was solved for the
+    right root, using numbers from a real flight (45 km, -692 m/s).
+    """
+    height, speed = 45000.0, -692.2
+    t = ballistic_fall_time(height, speed, KERBIN_GRAVITY)
+    recovered = abs(speed) * t + 0.5 * KERBIN_GRAVITY * t * t
+    assert abs(recovered - height) < 1e-6
+
+
+def test_ballistic_fall_time_at_ground_is_zero():
+    """No height left means no time left, however fast you are going."""
+    assert ballistic_fall_time(0.0, -500.0, KERBIN_GRAVITY) == 0.0
+
+
+def test_ballistic_fall_time_below_ground_is_clamped():
+    """A negative height must not put a negative under the square root."""
+    assert ballistic_fall_time(-50.0, -100.0, KERBIN_GRAVITY) == 0.0
+
+
+def test_ballistic_fall_time_shorter_when_already_falling():
+    """Starting with downward speed gets you there sooner than from rest."""
+    moving = ballistic_fall_time(1000.0, -100.0, KERBIN_GRAVITY)
+    resting = ballistic_fall_time(1000.0, 0.0, KERBIN_GRAVITY)
+    assert moving < resting
+
+
+def test_ballistic_fall_time_ignores_sign_of_vertical_speed():
+    """abs() means an ascending vessel is treated as if it were descending.
+
+    Pinning the limitation rather than endorsing it. CORRECT only ever runs
+    on a descending vessel today, but a profile that entered it while still
+    climbing would get a badly short fall time and over-correct.
+    """
+    assert (ballistic_fall_time(1000.0, -100.0, KERBIN_GRAVITY)
+            == ballistic_fall_time(1000.0, 100.0, KERBIN_GRAVITY))
+
+
+def test_predicted_impact_offset_without_velocity():
+    """With no horizontal motion, you land where you already are."""
+    assert predicted_impact_offset(100.0, 200.0, 0.0, 0.0, 50.0) == (100.0, 200.0)
+
+
+def test_predicted_impact_offset_carries_each_axis_independently():
+    """Each axis advances by its own velocity times the fall time."""
+    north, east = predicted_impact_offset(100.0, 200.0, 3.0, -4.0, 10.0)
+    assert abs(north - 130.0) < 1e-9
+    assert abs(east - 160.0) < 1e-9
+
+
+def test_predicted_impact_offset_scales_with_fall_time():
+    """Twice the fall time carries twice as far from the same start."""
+    _, near = predicted_impact_offset(0.0, 0.0, 0.0, 5.0, 10.0)
+    _, far = predicted_impact_offset(0.0, 0.0, 0.0, 5.0, 20.0)
+    assert abs(far - 2.0 * near) < 1e-9
+
+
+def test_predicted_impact_offset_sign_points_downrange():
+    """Drifting east predicts an impact further east, not nearer."""
+    _, east = predicted_impact_offset(0.0, 466.1, 0.0, 17.78, 48.6)
+    assert east > 466.1
