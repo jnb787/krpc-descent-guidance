@@ -43,7 +43,7 @@ MAX_TILT = math.tan(math.radians(15.0))
 CORRECT_THROTTLE = 0.1
 CORRECT_DV_TOLERANCE = 1.0  # m/s
 CORRECT_FLOOR = 40000.0    # m
-POINT_TOLERANCE = 10.0       # degrees
+POINT_TOLERANCE = 5.0   # degrees
 
 def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
     """Run the full autonomous landing sequence.
@@ -159,11 +159,25 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
                 print("CORRECT")
 
             elif phase == Phase.CORRECT:
-                
-            
-                phase = Phase.COAST
-                print("COAST")
-                
+                dv_north = -predicted_north / max(t_fall, 1.0)
+                dv_east = -predicted_east / max(t_fall, 1.0)
+                dv_magnitude = math.hypot(dv_north, dv_east)
+
+                if dv_magnitude <= CORRECT_DV_TOLERANCE or telem.altitude() <= CORRECT_FLOOR:
+                    vehic.set_throttle(0.0)
+                    vehic.point_retrograde()
+                    phase = Phase.COAST
+                    print("COAST")
+
+                else:
+                    vehic.point(north=dv_north, east=dv_east, up=0.0)
+
+                    if vehic.pointing_error() < POINT_TOLERANCE:
+                        vehic.set_throttle(CORRECT_THROTTLE)
+                        time.sleep(0.1)
+                    else:
+                        vehic.set_throttle(0.0)
+
             elif phase == Phase.COAST:
 
                 if telem.altitude() <= 25000.0 and not vehic.brakes_status():
