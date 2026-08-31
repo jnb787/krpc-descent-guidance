@@ -66,6 +66,10 @@ class Vehicle:
         For descent: up large, north/east small (the horizontal PID sets those)."""
         self.ap.target_direction = (up, north, east)
 
+    def pointing_error(self) -> float:
+        """Return the current error in the target direction, in degrees."""
+        return self.ap.error
+
     def point_retrograde(self) -> None:
         """Coast phase: cheap retrograde hold via stock SAS."""
         self.ap.disengage()               # don't let the autopilot fight SAS
@@ -92,13 +96,12 @@ class Vehicle:
         self.vessel.control.brakes = True
 
     def enable_rcs(self) -> None:
-        """Turn on RCS for extra attitude authority.
-
-        Useful during descent, where the engine gimbal alone can be slow to
-        settle the vessel. Costs monopropellant, so it's worth turning back
-        off once you're down.
-        """
+        """Turn on RCS for extra attitude authority."""
         self.vessel.control.rcs = True
+
+    def disable_rcs(self) -> None:
+        """Turn off RCS."""
+        self.vessel.control.rcs = False
 
     def legs_status(self) -> bool:
         """Return True if legs are deployed."""

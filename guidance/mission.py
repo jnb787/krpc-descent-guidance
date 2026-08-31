@@ -18,21 +18,32 @@ Phases (build and test these one at a time, in this order):
                    fuel remaining, max G, time to land)
 
 """
+import math
 import time
 import os
 
 from guidance import telemetry, vehicle
 from guidance.flight_log import FlightLogger, write_summary
 from guidance.controllers import suicide_burn_altitude, target_vertical_speed, PIDController
-from guidance.utils import haversine_distance
+from guidance.utils import haversine_distance, surface_offset, ballistic_fall_time, predicted_impact_offset
 from enum import Enum, auto
 
 class Phase(Enum):
     DEORBIT = auto()
+    CORRECT = auto()
     COAST = auto()
     DESCENT = auto()
     LANDED = auto()
 
+
+# Steepest tilt off vertical the descent will command, as tan(angle) -- the
+# north/east components of the direction vector are a ratio against up=1.0.
+MAX_TILT = math.tan(math.radians(15.0))
+
+CORRECT_THROTTLE = 0.1
+CORRECT_DV_TOLERANCE = 1.0  # m/s
+CORRECT_FLOOR = 40000.0    # m
+POINT_TOLERANCE = 10.0   # degrees
 
 def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
     """Run the full autonomous landing sequence.
@@ -52,23 +63,46 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
     telem = telemetry.Telemetry(conn, vessel)
     vehic = vehicle.Vehicle(conn, vessel)
     throttle_controller = PIDController(kp=0.2, ki=0.02, kd=0.025, setpoint=0.0, integral_limit=10.0)
+    north_controller = PIDController(kp=0.0006, ki=0.0, kd=0.013, setpoint=0.0, integral_limit=0.0)
+    east_controller = PIDController(kp=0.0006, ki=0.0, kd=0.013, setpoint=0.0, integral_limit=0.0)
 
     body = vessel.orbit.body
     gravity = body.surface_gravity          
     body_radius = body.equatorial_radius
+    body_rotation = body.rotational_speed
 
     start_fuel = telem.fuel_mass()
     start_time = time.time()
     max_g = 0.0
 
-    log_fields = ["time", "phase", "altitude", "vertical_speed", "horizontal_speed",
-              "target_vertical_speed", "throttle", "mass", "fuel_mass", "g_force"]
+    log_fields = ["time", "ut", "phase", "altitude", "vertical_speed", "horizontal_speed",
+              "target_vertical_speed", "throttle", "mass", "fuel_mass", "g_force",
+              # horizontal guidance: where we are vs the target, what we asked
+              # for, and what the vessel actually did about it
+              "north_offset", "east_offset", "north_input", "east_input",
+              "tilt_demand_deg", "tilt_cmd_deg", "pitch", "heading",
+              # the impact predictor CORRECT steers on -- logged in every
+              # phase so the ballistic guess can be scored against where the
+              # vehicle actually came down. The dv CORRECT commands is just
+              # -predicted / max(t_fall, 1), so it is not logged separately.
+              "velocity_north", "velocity_east", "t_fall",
+              "predicted_north", "predicted_east",
+              # aero authority, which is what competes with the tilt command
+              "dynamic_pressure", "drag"]
     data_dir = os.path.join(os.path.dirname(__file__), "..", "data")
     logger = FlightLogger(data_dir, prefix="landing", fields=log_fields)
     desired_speed = 0.0   # so the first ticks have something to log
     legs_deployed = False  # control.legs reads False mid-animation, so latch it here
 
-    phase = Phase.DEORBIT          
+    # Horizontal guidance state, logged every tick but only driven in DESCENT.
+    north_input = east_input = 0.0
+    tilt_demand_deg = tilt_cmd_deg = 0.0
+
+    phase = Phase.DEORBIT       
+    print("DEORBIT")
+    vehic.enable_rcs()
+    vehic.point_retrograde()
+   
     last_time = time.time()
 
     try:
@@ -78,8 +112,25 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
             last_time = now
             max_g = max(max_g, telem.g_force())
 
+            # Computed every tick, not just in DESCENT: watching the offset
+            # evolve through COAST is what tells us whether cross-range can be
+            # corrected up there, where there is far more time than the ~20 s
+            # the burn actually lasts.
+            north_offset, east_offset = surface_offset(
+                telem.latitude(), telem.longitude(),
+                target_latitude, target_longitude, body_radius)
+
+            velocity_up, velocity_north, velocity_east = telem.velocity_une()
+
+            t_fall = ballistic_fall_time(telem.altitude(), velocity_up, gravity)
+            predicted_north, predicted_east = predicted_impact_offset(
+                north_offset, east_offset, velocity_up, velocity_north, velocity_east, t_fall, body_rotation, gravity)
+            
+            drag_x, drag_y, drag_z = telem.drag()
+
             logger.log({
                 "time": now - start_time,
+                "ut": telem.ut(),
                 "phase": phase.name,
                 "altitude": telem.altitude(),
                 "vertical_speed": telem.vertical_speed(),
@@ -89,24 +140,59 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
                 "mass": vehic.current_mass(),
                 "fuel_mass": telem.fuel_mass(),
                 "g_force": telem.g_force(),
+                "north_offset": north_offset,
+                "east_offset": east_offset,
+                "north_input": north_input,
+                "east_input": east_input,
+                "tilt_demand_deg": tilt_demand_deg,
+                "tilt_cmd_deg": tilt_cmd_deg,
+                "pitch": telem.pitch(),
+                "heading": telem.heading(),
+                "velocity_north": velocity_north,
+                "velocity_east": velocity_east,
+                "t_fall": t_fall,
+                "predicted_north": predicted_north,
+                "predicted_east": predicted_east,
+                "dynamic_pressure": telem.dynamic_pressure(),
+                "drag": math.sqrt(drag_x**2 + drag_y**2 + drag_z**2),
             })
 
 
             if phase == Phase.DEORBIT:
-                print("DEORBIT")
-                vehic.enable_rcs()
-                vehic.point_retrograde()
-                time.sleep(25)
+                if vehic.pointing_error() < POINT_TOLERANCE:
 
-                while telem.horizontal_speed() > 1000.0:
-                    vehic.set_throttle(1.0)
-                    time.sleep(0.2)
+                    while telem.horizontal_speed() > 1000.0:
+                        vehic.set_throttle(1.0)
+                        time.sleep(0.2)
 
-                vehic.set_throttle(0.0)
+                    vehic.set_throttle(0.0)
+                    vehic.engage()
 
-                phase = Phase.COAST
-                print("COAST")
-                
+                    phase = Phase.CORRECT
+                    print("CORRECT")
+
+            elif phase == Phase.CORRECT:
+                dv_north = -predicted_north / max(t_fall, 1.0)
+                dv_east = -predicted_east / max(t_fall, 1.0)
+                dv_magnitude = math.hypot(dv_north, dv_east)
+
+                if dv_magnitude <= CORRECT_DV_TOLERANCE or telem.altitude() <= CORRECT_FLOOR:
+                    vehic.set_throttle(0.0)
+                    vehic.point_retrograde()
+                    phase = Phase.COAST
+                    print("COAST")
+
+                else:
+                    vehic.point(north=dv_north, east=dv_east, up=0.0)
+
+                    if vehic.pointing_error() < POINT_TOLERANCE:
+                        vehic.set_throttle(CORRECT_THROTTLE)
+                        
+                    else:
+                        vehic.set_throttle(0.0)
+
+                    time.sleep(0.1)
+
             elif phase == Phase.COAST:
 
                 if telem.altitude() <= 25000.0 and not vehic.brakes_status():
@@ -120,6 +206,7 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
                     print("SUICIDE BURN")
                     phase = Phase.DESCENT
                     print("DESCENT")
+                    vehic.engage()
 
                 time.sleep(0.1)
 
@@ -133,6 +220,19 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
                 
                 desired_speed = -target_vertical_speed(telem.effective_altitude(), vehic.max_deceleration(), gravity, k=0.75, touchdown_speed=2.0)
                 throttle_controller.setpoint = desired_speed
+
+                north_input = north_controller.update(north_offset, dt)
+                east_input = east_controller.update(east_offset, dt)
+
+                tilt = math.hypot(north_input, east_input)
+                tilt_demand_deg = math.degrees(math.atan(tilt))
+                if tilt > MAX_TILT:
+                    north_input *= MAX_TILT / tilt
+                    east_input  *= MAX_TILT / tilt
+                tilt_cmd_deg = math.degrees(math.atan(math.hypot(north_input, east_input)))
+
+                vehic.point(up=1.0, north=north_input, east=east_input)
+
 
                 if telem.altitude() <= 1000.0 and not legs_deployed:
                     print("LEGS")
@@ -151,6 +251,7 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
 
             elif phase == Phase.LANDED:
                 print("LANDED")
+                vehic.disable_rcs()
                 results = {
                     "landing_error_m": haversine_distance(
                         telem.latitude(), telem.longitude(),
@@ -165,4 +266,5 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
                 return results
 
     finally:
+        vehic.set_throttle(0.0)
         logger.close()

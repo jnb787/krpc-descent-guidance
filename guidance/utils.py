@@ -35,6 +35,67 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float,
     return body_radius * c
 
 
+def surface_offset(lat: float, lon: float, target_lat: float, target_lon: float,
+                    body_radius: float) -> tuple:
+    """Signed north/east offset of a position from a target, in meters.
+
+    Converts an angular lat/lon difference into local tangent-plane
+    distances, so a horizontal-position controller can work in meters
+    instead of degrees (a degree of longitude shrinks by cos(latitude),
+    so raw degree errors are not comparable between the two axes).
+
+    Args:
+        lat, lon: current position, in degrees
+        target_lat, target_lon: target position, in degrees
+        body_radius: radius of the body, in meters
+
+    Returns:
+        (north, east) offset in meters, positive when the current
+        position is north/east *of the target*. Feed these straight to a
+        PID with setpoint 0.0: the resulting error points back at the
+        target.
+    """
+    delta_lat = math.radians(lat - target_lat)
+
+    # Wrap into [-180, 180] so a target across the antimeridian gives the
+    # short way round rather than a near-full lap of the body.
+    delta_lon = math.radians((lon - target_lon + 180.0) % 360.0 - 180.0)
+
+    # Equirectangular approximation: scale the east axis by the cosine of
+    # the mean latitude. Good to well under a meter over the few km of
+    # cross-range error a descent actually has to null out.
+    mean_lat = math.radians((lat + target_lat) / 2.0)
+
+    north = body_radius * delta_lat
+    east = body_radius * math.cos(mean_lat) * delta_lon
+
+    return (north, east)
+
+
 def clamp(value: float, min_value: float, max_value: float) -> float:
     """Clamp value to the range [min_value, max_value]."""
     return max(min_value, min(value, max_value))
+
+def ballistic_fall_time(height: float, vertical_speed: float, gravity: float) -> float:
+    """Compute the time to fall from a given height with a given vertical speed."""
+
+    v = abs(vertical_speed)
+    return (-v + math.sqrt(v*v + 2.0 * gravity * max(height, 0.0))) / gravity
+
+def predicted_impact_offset(north_offset: float, east_offset: float, v_up: float, v_north: float, v_east: float, t_fall: float, omega: float = 0.0, gravity: float = 0.0) -> tuple:
+    """Predict the north/east offset at impact given current offsets, velocities, and fall time.
+
+    Args:
+        north_offset: current north offset in meters
+        east_offset: current east offset in meters
+        v_up: current vertical velocity in m/s (positive up)
+        v_north: current north velocity in m/s
+        v_east: current east velocity in m/s
+        t_fall: time to fall in seconds
+        omega: rotational speed of the body in rad/s"""
+
+    a_east = 2 * omega * -v_up
+
+    pred_north = north_offset + v_north * t_fall
+    pred_east = east_offset + v_east * t_fall + 1/2 * a_east * t_fall**2 + 2*omega*gravity*t_fall**3/6
+    return (pred_north, pred_east)

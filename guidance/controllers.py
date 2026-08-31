@@ -125,6 +125,6 @@ def target_vertical_speed(altitude: float, max_deceleration: float,
     Returns:
         Target vertical speed, m/s
     """
-
+    clamped_altitude = clamp(altitude, 0.1, float("inf"))
     net = clamp(max_deceleration - gravity, 0.1, float("inf"))
-    return k * math.sqrt(altitude * 2 * net + touchdown_speed**2)
+    return k * math.sqrt(clamped_altitude * 2 * net + touchdown_speed**2)
