@@ -69,6 +69,7 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
     body = vessel.orbit.body
     gravity = body.surface_gravity          
     body_radius = body.equatorial_radius
+    body_rotation = body.rotational_speed
 
     start_fuel = telem.fuel_mass()
     start_time = time.time()
@@ -123,7 +124,7 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
 
             t_fall = ballistic_fall_time(telem.altitude(), velocity_up, gravity)
             predicted_north, predicted_east = predicted_impact_offset(
-                north_offset, east_offset, velocity_north, velocity_east, t_fall)
+                north_offset, east_offset, velocity_up, velocity_north, velocity_east, t_fall, body_rotation, gravity)
             
             drag_x, drag_y, drag_z = telem.drag()
 

@@ -139,24 +139,121 @@ def test_ballistic_fall_time_ignores_sign_of_vertical_speed():
 
 def test_predicted_impact_offset_without_velocity():
     """With no horizontal motion, you land where you already are."""
-    assert predicted_impact_offset(100.0, 200.0, 0.0, 0.0, 50.0) == (100.0, 200.0)
+    assert predicted_impact_offset(100.0, 200.0, -300.0, 0.0, 0.0, 50.0) == (100.0, 200.0)
 
 
 def test_predicted_impact_offset_carries_each_axis_independently():
     """Each axis advances by its own velocity times the fall time."""
-    north, east = predicted_impact_offset(100.0, 200.0, 3.0, -4.0, 10.0)
+    north, east = predicted_impact_offset(100.0, 200.0, -300.0, 3.0, -4.0, 10.0)
     assert abs(north - 130.0) < 1e-9
     assert abs(east - 160.0) < 1e-9
 
 
 def test_predicted_impact_offset_scales_with_fall_time():
     """Twice the fall time carries twice as far from the same start."""
-    _, near = predicted_impact_offset(0.0, 0.0, 0.0, 5.0, 10.0)
-    _, far = predicted_impact_offset(0.0, 0.0, 0.0, 5.0, 20.0)
+    _, near = predicted_impact_offset(0.0, 0.0, -300.0, 0.0, 5.0, 10.0)
+    _, far = predicted_impact_offset(0.0, 0.0, -300.0, 0.0, 5.0, 20.0)
     assert abs(far - 2.0 * near) < 1e-9
 
 
 def test_predicted_impact_offset_sign_points_downrange():
     """Drifting east predicts an impact further east, not nearer."""
-    _, east = predicted_impact_offset(0.0, 466.1, 0.0, 17.78, 48.6)
+    _, east = predicted_impact_offset(0.0, 466.1, -300.0, 0.0, 17.78, 48.6)
     assert east > 466.1
+
+
+# --- Coriolis deflection -----------------------------------------------------
+#
+# A vessel falling on a prograde-rotating body drifts east. The deflection is
+# 2*omega*v_down, and v_down itself grows as g*t during the fall, so the
+# displacement has both a T^2 and a T^3 term. Both default to off (omega and
+# gravity default to 0.0), which is what the four tests above rely on.
+
+KERBIN_OMEGA = 2.909e-4  # rad/s
+
+
+def test_predicted_impact_offset_no_rotation_is_a_straight_line():
+    """omega=0 must reproduce the pre-Coriolis behaviour exactly.
+
+    The regression guard for every caller that does not opt in: no rotation,
+    no deflection, however fast the vessel is falling.
+    """
+    _, east = predicted_impact_offset(0.0, 100.0, -744.0, 0.0, 5.0, 41.8,
+                                      omega=0.0, gravity=KERBIN_GRAVITY)
+    assert abs(east - (100.0 + 5.0 * 41.8)) < 1e-9
+
+
+def test_predicted_impact_offset_gravity_isolates_the_cubic_term():
+    """gravity=0 leaves only the T^2 term, so the two halves can be told apart.
+
+    Without this a sign error in one term could hide inside the sum of both.
+    """
+    t = 41.8
+    _, quadratic_only = predicted_impact_offset(0.0, 0.0, -744.0, 0.0, 0.0, t,
+                                                omega=KERBIN_OMEGA, gravity=0.0)
+    expected = 2 * KERBIN_OMEGA * 0.5 * 744.0 * t ** 2
+    assert abs(quadratic_only - expected) < 1e-9
+
+
+def test_predicted_impact_offset_descending_deflects_east():
+    """A falling vessel lands east of where a straight line would put it."""
+    _, drifting = predicted_impact_offset(0.0, 0.0, -744.0, 0.0, 0.0, 41.8,
+                                          omega=KERBIN_OMEGA, gravity=KERBIN_GRAVITY)
+    assert drifting > 0.0
+
+
+def test_predicted_impact_offset_ascending_deflects_west():
+    """The sign of the deflection follows the sign of v_up.
+
+    Pins v0 = -v_up. A vessel still climbing is thrown the other way, and
+    getting this backwards would send CORRECT's burn 180 degrees wrong.
+    """
+    _, climbing = predicted_impact_offset(0.0, 0.0, 744.0, 0.0, 0.0, 41.8,
+                                          omega=KERBIN_OMEGA, gravity=KERBIN_GRAVITY)
+    assert climbing < 0.0
+
+
+def test_predicted_impact_offset_matches_numerical_integration():
+    """Step the acceleration forward by hand and compare against the closed form.
+
+    Stronger than any spot value: it independently integrates
+    a_east(t) = 2*omega*(v0 + g*t) twice, so a dropped factor of 1/2, a T^2
+    written where T^3 was meant, or a 1/6 that should be 1/3 all show up.
+    Uses the flight state at CORRECT's exit on run 180024.
+    """
+    x0, v_east0, v_up, t_fall = 411.1, -8.72, -744.0, 41.8
+    _, closed_form = predicted_impact_offset(0.0, x0, v_up, 0.0, v_east0, t_fall,
+                                             omega=KERBIN_OMEGA, gravity=KERBIN_GRAVITY)
+
+    steps = 200_000
+    dt = t_fall / steps
+    v0 = -v_up
+    v_east, east = v_east0, x0
+    for i in range(steps):
+        v_east += 2 * KERBIN_OMEGA * (v0 + KERBIN_GRAVITY * i * dt) * dt
+        east += v_east * dt
+
+    assert abs(closed_form - east) < 0.01
+
+
+def test_predicted_impact_offset_cubic_term_dominates_long_falls():
+    """At high altitude the T^3 term is worth several times the T^2 term.
+
+    This is the property the change was made for: correcting early was
+    useless because the predictor was blind to most of the coming drift.
+    At t_fall = 112 s the omitted term was over 3x the one that was there.
+    """
+    t = 112.4
+    _, quadratic_only = predicted_impact_offset(0.0, 0.0, -110.0, 0.0, 0.0, t,
+                                                omega=KERBIN_OMEGA, gravity=0.0)
+    _, both_terms = predicted_impact_offset(0.0, 0.0, -110.0, 0.0, 0.0, t,
+                                            omega=KERBIN_OMEGA, gravity=KERBIN_GRAVITY)
+    cubic = both_terms - quadratic_only
+    assert cubic > 3.0 * quadratic_only
+
+
+def test_predicted_impact_offset_north_is_unaffected_by_rotation():
+    """A radial fall deflects only east -- the north axis stays a straight line."""
+    north, _ = predicted_impact_offset(50.0, 0.0, -744.0, 2.0, 0.0, 41.8,
+                                       omega=KERBIN_OMEGA, gravity=KERBIN_GRAVITY)
+    assert abs(north - (50.0 + 2.0 * 41.8)) < 1e-9
