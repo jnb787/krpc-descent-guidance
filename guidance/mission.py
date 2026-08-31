@@ -43,7 +43,7 @@ MAX_TILT = math.tan(math.radians(15.0))
 CORRECT_THROTTLE = 0.1
 CORRECT_DV_TOLERANCE = 1.0  # m/s
 CORRECT_FLOOR = 40000.0    # m
-POINT_TOLERANCE = 5.0   # degrees
+POINT_TOLERANCE = 10.0   # degrees
 
 def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
     """Run the full autonomous landing sequence.
@@ -63,8 +63,8 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
     telem = telemetry.Telemetry(conn, vessel)
     vehic = vehicle.Vehicle(conn, vessel)
     throttle_controller = PIDController(kp=0.2, ki=0.02, kd=0.025, setpoint=0.0, integral_limit=10.0)
-    north_controller = PIDController(kp=3e-4, ki=0.0, kd=5e-3, setpoint=0.0, integral_limit=0.0)
-    east_controller = PIDController(kp=3e-4, ki=0.0, kd=5e-3, setpoint=0.0, integral_limit=0.0)
+    north_controller = PIDController(kp=0.0006, ki=0.0, kd=0.013, setpoint=0.0, integral_limit=0.0)
+    east_controller = PIDController(kp=0.0006, ki=0.0, kd=0.013, setpoint=0.0, integral_limit=0.0)
 
     body = vessel.orbit.body
     gravity = body.surface_gravity          
@@ -80,6 +80,12 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
               # for, and what the vessel actually did about it
               "north_offset", "east_offset", "north_input", "east_input",
               "tilt_demand_deg", "tilt_cmd_deg", "pitch", "heading",
+              # the impact predictor CORRECT steers on -- logged in every
+              # phase so the ballistic guess can be scored against where the
+              # vehicle actually came down. The dv CORRECT commands is just
+              # -predicted / max(t_fall, 1), so it is not logged separately.
+              "velocity_north", "velocity_east", "t_fall",
+              "predicted_north", "predicted_east",
               # aero authority, which is what competes with the tilt command
               "dynamic_pressure", "drag"]
     data_dir = os.path.join(os.path.dirname(__file__), "..", "data")
@@ -91,7 +97,11 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
     north_input = east_input = 0.0
     tilt_demand_deg = tilt_cmd_deg = 0.0
 
-    phase = Phase.DEORBIT          
+    phase = Phase.DEORBIT       
+    print("DEORBIT")
+    vehic.enable_rcs()
+    vehic.point_retrograde()
+   
     last_time = time.time()
 
     try:
@@ -137,26 +147,28 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
                 "tilt_cmd_deg": tilt_cmd_deg,
                 "pitch": telem.pitch(),
                 "heading": telem.heading(),
+                "velocity_north": velocity_north,
+                "velocity_east": velocity_east,
+                "t_fall": t_fall,
+                "predicted_north": predicted_north,
+                "predicted_east": predicted_east,
                 "dynamic_pressure": telem.dynamic_pressure(),
                 "drag": math.sqrt(drag_x**2 + drag_y**2 + drag_z**2),
             })
 
 
             if phase == Phase.DEORBIT:
-                print("DEORBIT")
-                vehic.enable_rcs()
-                vehic.point_retrograde()
-                time.sleep(25)
+                if vehic.pointing_error() < POINT_TOLERANCE:
 
-                while telem.horizontal_speed() > 1000.0:
-                    vehic.set_throttle(1.0)
-                    time.sleep(0.2)
+                    while telem.horizontal_speed() > 1000.0:
+                        vehic.set_throttle(1.0)
+                        time.sleep(0.2)
 
-                vehic.set_throttle(0.0)
-                vehic.engage()
+                    vehic.set_throttle(0.0)
+                    vehic.engage()
 
-                phase = Phase.CORRECT
-                print("CORRECT")
+                    phase = Phase.CORRECT
+                    print("CORRECT")
 
             elif phase == Phase.CORRECT:
                 dv_north = -predicted_north / max(t_fall, 1.0)
@@ -174,9 +186,11 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
 
                     if vehic.pointing_error() < POINT_TOLERANCE:
                         vehic.set_throttle(CORRECT_THROTTLE)
-                        time.sleep(0.1)
+                        
                     else:
                         vehic.set_throttle(0.0)
+
+                    time.sleep(0.1)
 
             elif phase == Phase.COAST:
 
@@ -251,4 +265,5 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
                 return results
 
     finally:
+        vehic.set_throttle(0.0)
         logger.close()
