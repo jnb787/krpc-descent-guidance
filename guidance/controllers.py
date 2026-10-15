@@ -1,8 +1,7 @@
 """
 controllers.py
 
-This is the heart of the project: the actual guidance and control
-math. Two things live here:
+Guidance and control algorithms for landing system.
 
 1. PIDController - a general-purpose feedback controller, reusable
    for throttle control, attitude correction, horizontal position
@@ -10,9 +9,8 @@ math. Two things live here:
 
 2. suicide_burn_altitude() - the physics calculation for "how high
    do I need to be when I start my braking burn so that I reach
-   zero velocity exactly at the surface." This is the core aerospace
-   guidance concept for this project -- work through the derivation
-   yourself (kinematics: v^2 = v0^2 + 2*a*d) before filling this in.
+   zero velocity exactly at the surface." Dervivation can be found
+   in technical writeup.
 """
 import time
 import math

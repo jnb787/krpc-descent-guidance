@@ -7,14 +7,16 @@ vehicle, and controllers together into a full autonomous landing.
 Phases (build and test these one at a time, in this order):
     1. DEORBIT   - execute a burn to drop the orbit's periapsis toward
                    the target landing site
-    2. COAST     - wait for the vessel to descend, doing nothing but
+    2. CORRECT   - if the ballistic trajectory is off-target, use a
+                   small burn to correct it
+    3. COAST     - wait for the vessel to descend, doing nothing but
                    monitoring altitude, until suicide_burn_altitude()
                    says it's time to start braking
-    3. DESCENT   - the powered-descent / suicide burn itself: throttle
+    4. DESCENT   - the powered-descent / suicide burn itself: throttle
                    controlled by a PID loop targeting zero vertical
                    speed at zero altitude, attitude corrected to null
                    out horizontal drift toward the target
-    4. LANDED    - cut throttle, log final results (landing error,
+    5. LANDED    - cut throttle, log final results (landing error,
                    fuel remaining, max G, time to land)
 
 """
@@ -55,8 +57,7 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
 
     Returns:
         A results dict with keys like: landing_error_m, fuel_used_kg,
-        max_g, time_to_land_s -- this is what you'll aggregate across
-        20+ runs for your SMART goal's measurable success criteria.
+        max_g, time_to_land_s
     """
 
     vessel = conn.space_center.active_vessel
@@ -77,7 +78,7 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
 
     log_fields = ["time", "ut", "phase", "altitude", "vertical_speed", "horizontal_speed",
               "target_vertical_speed", "throttle", "mass", "fuel_mass", "g_force",
-              # horizontal guidance: where we are vs the target, what we asked
+              # horizontal guidance: where it is vs the target, what we asked
               # for, and what the vessel actually did about it
               "north_offset", "east_offset", "north_input", "east_input",
               "tilt_demand_deg", "tilt_cmd_deg", "pitch", "heading",
@@ -91,7 +92,7 @@ def run_mission(conn, target_latitude: float, target_longitude: float) -> dict:
               "dynamic_pressure", "drag"]
     data_dir = os.path.join(os.path.dirname(__file__), "..", "data")
     logger = FlightLogger(data_dir, prefix="landing", fields=log_fields)
-    desired_speed = 0.0   # so the first ticks have something to log
+    desired_speed = 0.0
     legs_deployed = False  # control.legs reads False mid-animation, so latch it here
 
     # Horizontal guidance state, logged every tick but only driven in DESCENT.

@@ -5,8 +5,8 @@ Wraps vessel-specific properties needed for guidance calculations:
 current mass, max thrust, specific impulse, throttle/attitude control.
 
 Separating this from telemetry.py keeps a clean distinction:
-    telemetry.py -> "where am I, how fast am I going"
-    vehicle.py   -> "what can my vehicle actually do about it"
+    telemetry.py -> position and orientation (state)
+    vehicle.py   -> vehicle capabilities
 """
 
 import time
@@ -14,16 +14,7 @@ import time
 from guidance.utils import clamp
 
 class Vehicle:
-    """Represents the controllable properties of the active vessel.
-
-    TODO:
-        - wrap conn.space_center.active_vessel
-        - expose: mass (kg), available_thrust (N), max_deceleration (m/s^2)
-        - expose control setters: set_throttle(value), point_retrograde(),
-          point_at(direction)
-        - remember thrust and mass change as fuel burns -- max_deceleration
-          should be recomputed each guidance loop iteration, not cached
-    """
+    """Represents the controllable properties of the active vessel. """
 
     def __init__(self, conn, vessel):
         self.conn = conn
