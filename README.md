@@ -1,5 +1,7 @@
 # Autonomous Powered-Descent Guidance for KSP
 
+https://github.com/user-attachments/assets/cca0fa91-44ea-4c42-8734-01e46c119813
+
 An autonomous guidance system that lands a Kerbal Space Program rocket booster using real-time telemetry and closed-loop control. This project was inspired by SpaceX’s Falcon 9 powered descent booster recovery.
 
 Built with [kRPC](https://krpc.github.io/krpc/), a mod that exposes KSP’s flight data and controls to external Python scripts.
