@@ -2,11 +2,8 @@
 """
 log_manual_flight.py
 
-Week 1-2 exploration script. Fly the vessel MANUALLY in KSP while this
-script connects via kRPC and prints/logs live telemetry. The goal here
-isn't autonomy yet -- it's getting comfortable with the kRPC API and
-understanding what real telemetry values look like during an actual
-descent, before you try to control it programmatically.
+Script connects via kRPC and prints/logs live telemetry. Used to
+log manual flight and test kRPC connection and API.
 
 Usage:
     python scripts/log_manual_flight.py

@@ -1,8 +1,7 @@
 """
 test_controllers.py
 
-Unit tests for the pure-math parts of controllers.py. These don't
-need a live KSP connection -- that's the point. Test your PID math
+Unit tests for the pure-math parts of controllers.py. Tests PID math
 and suicide-burn calculation in isolation with known inputs/outputs.
 
 Run with:
