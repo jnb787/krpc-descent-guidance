@@ -2,7 +2,7 @@
 flight_log.py
 
 CSV flight-data logger. Used by both the manual logging script and
-(later) the autonomous mission loop, so both produce identically
+the autonomous mission loop, so both produce identically
 formatted data for plot_results.py.
 """
 

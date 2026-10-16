@@ -3,8 +3,8 @@ utils.py
 
 Small, pure, easily-testable helper functions: unit conversions,
 coordinate transforms, vector math helpers. Nothing in this file
-should touch kRPC or need a live game connection -- that's what
-makes it easy to unit test (see tests/test_utils.py).
+should touch kRPC or need a live game connection, making it
+easy to unit test (see tests/test_utils.py).
 """
 
 import math

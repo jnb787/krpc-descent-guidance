@@ -2,12 +2,9 @@
 """
 plot_results.py
 
-Reads logged flight CSVs from data/ and produces plots for your
-technical writeup: landing accuracy distribution, altitude/velocity
-profile over time, fuel usage, etc.
-
-This is what turns your raw logged runs into the "Measurable" evidence
-your SMART goal promised (e.g. "landed within 25m on 18/20 runs").
+Reads logged flight CSVs from data/ and produces plots:
+landing accuracy distribution, altitude/velocity profile 
+over time, fuel usage, etc.
 
 Usage:
     python scripts/plot_results.py --input data/landing_log.csv
@@ -25,7 +22,7 @@ def main():
     parser.add_argument("--input", type=str, required=True, help="Path to CSV log")
     args = parser.parse_args()
 
-    # TODO once you have real logged data:
+    # TODO once there is real logged data:
     # import pandas as pd
     # import matplotlib.pyplot as plt
     # df = pd.read_csv(args.input)
@@ -34,7 +31,7 @@ def main():
     # -- histogram of landing error across runs
     # -- save figures to docs/images/
 
-    raise NotImplementedError("Implement once you have real CSV data to plot.")
+    raise NotImplementedError("Implement once there is CSV data to plot.")
 
 
 if __name__ == "__main__":

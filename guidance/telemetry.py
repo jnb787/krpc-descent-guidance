@@ -4,11 +4,11 @@ telemetry.py
 Connects to the kRPC server and exposes live vessel telemetry:
 altitude, velocity (surface + orbital frames), fuel mass, orientation.
 
-This module should be the ONLY place in the project that talks
+This module is the ONLY place in the project that talks
 directly to kRPC's raw API for reading state. Everything else
-(controllers, mission logic) should consume clean Python data
-from here, not touch `conn.space_center...` directly. That keeps
-your guidance math testable without a live KSP connection.
+(controllers, mission logic) consumes clean Python data
+from here, not touching `conn.space_center...` directly. 
+That keeps guidance math testable without a live KSP connection.
 """
 
 import krpc
@@ -48,7 +48,7 @@ class Telemetry:
         """Return universal (in-game) time in seconds.
 
         Unlike time.time(), this advances with the game clock, so it stays
-        correct through time warp -- use it for anything that has to line
+        correct through time warp -- used for anything that has to line
         up with the physics (control loop dt, phase durations).
         """
         return self.ut_stream()
@@ -59,7 +59,7 @@ class Telemetry:
 
     def effective_altitude(self) -> float:
         """Return altitude in m factoring CoM height into the calculation."""
-        return self.flight().surface_altitude - 8.75
+        return self.flight().surface_altitude - 8.75 # TODO: make this a parameter so it can be tuned for different vessels, or read from the vessel itself
 
     def vertical_speed(self) -> float:
         """Return vertical speed in m/s (negative = descending)."""

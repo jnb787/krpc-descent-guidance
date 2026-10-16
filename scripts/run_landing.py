@@ -8,8 +8,8 @@ runs the full autonomous descent-and-landing sequence.
 Usage:
     python scripts/run_landing.py --lat -0.09720 --lon -74.55767
 
-(Those default coordinates are KSC's launchpad, just as a placeholder
-target -- swap in wherever you actually want to land.)
+(Default coordinates are KSC's launchpad, just as a placeholder
+target -- swap with intended landing coordinates.)
 """
 
 import argparse
